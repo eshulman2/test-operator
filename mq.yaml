@@ -1,0 +1,98 @@
+---
+apiVersion: test.openstack.org/v1beta1
+kind: AnsibleTest
+metadata:
+  name: performance-tests
+  namespace: openstack
+spec:
+  ansibleExtraVars: ' -e manual_run=false -e dut_type=dpdk -e private_key_fetch_location=~/ -e python_interperter=/usr/bin/python3 -e @/etc/test-operator/extra_files/dut_vars_file -e binary_perf_log=/var/lib/AnsibleTest/external_files/dpdk_performance.log '
+  extraMounts:
+    - Name: mq-data
+      mountPath: /etc/test-operator/extra_files
+  debug: true
+  workloadSSHKeySecretName: 'open-tofu-ssh-keys'
+  ansiblePlaybookPath: playbooks/tripleo/multiqueue/multiqueue_learning.yml
+  ansibleGitRepo: https://github.com/eshulman2/ansible-nfv.git
+  containerImage: quay.io/rhos-dfg-nfv/test_performance:latest
+  ansibleInventory: |
+    localhost ansible_connection=local ansible_python_interpreter=python3
+    undercloud-0 ansible_connection=local ansible_python_interpreter=python3
+    compute-0 ansible_host=192.168.122.100 ansible_user=cloud-admin ansible_ssh_private_key_file=/var/lib/ansible/.ssh/compute_id
+    compute-1 ansible_host=192.168.122.101 ansible_user=cloud-admin ansible_ssh_private_key_file=/var/lib/ansible/.ssh/compute_id
+    [compute]
+    compute-0
+    compute-1
+    [local]
+    localhost
+    [undercloud]
+    undercloud-0
+  ansibleVarFiles: |
+    ---
+    image_ssh_user: cloud-user
+    tempest_flavor_name: perf_numa_1_dpdk_dut
+    generate_accounts: true
+
+    # DUT compute
+    dut_compute: compute-1
+
+    # trex vm cores
+    trex_lcores: "2-11"
+
+    # testpmd cpu pinning
+    testpmd_lcores: "1-7"
+
+    # testpmd forwarding cores
+    testpmd_forward_cores: 6
+
+    # testpmd rx queues
+    testpmd_rxq: 3
+
+    # testpmd tx queues
+    testpmd_txq: 3
+
+    # testpmd path (for rhel 8.4 vm)
+    testpmd_bin: "/root/dpdk/build/app/dpdk-testpmd"
+
+    # affinity used for learning mode
+    pmd_rxq_affinity:
+      - interface: "dpdk2"
+        pmd_rxq_affinity: "0:3,1:5,2:7"
+      - interface: "dpdk4"
+        pmd_rxq_affinity: "0:3,1:5,2:7"
+
+    # set down bridge interfaces
+    testpmd_down_interfaces:
+      - bridge: "br-dpdk0"
+        interface: "dpdk3"
+
+    # multiqueue config
+    multiqueue_config: true
+
+    # testpmd_log
+    testpmd_log: /tmp/testpmd.log
+
+    # pmd_rxq_show output file
+    pmd_rxq_show_output: "/tmp/pmd_rxq_show_output.txt"
+
+    # rates used for learning queues ids from hypervisor
+    pps:
+      - "0": 1.2
+        "1": 0.5
+        "2": 0.1
+      - "0": 0.8
+        "1": 0.5
+        "2": 0.1
+
+    # injection time in seconds
+    duration: 40
+
+    # file with the queues learned
+    queues_json: "/tmp/queues.json"
+    ssh_key: test_keypair.key
+    dynamic_instances:
+      - name: trex
+        group: trex
+        user: cloud-user
+      - name: testpmd-dpdk-dut
+        group: testpmd-dpdk-dut
+        user: cloud-user

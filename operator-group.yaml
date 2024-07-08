@@ -1,0 +1,9 @@
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openstack-operatorgroup
+  namespace: openstack
+spec:
+  targetNamespaces:
+    - openstack

@@ -1,0 +1,9 @@
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: test-operator-catalog
+  namespace: openstack
+spec:
+  sourceType: grpc
+  image: quay.io/openstack-k8s-operators/test-operator-index:latest

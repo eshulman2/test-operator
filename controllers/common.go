@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"slices"
 	"time"
 
 	"crypto/sha256"
@@ -372,4 +373,65 @@ func (r *Reconciler) OverwriteValueWithWorkflow(
 	}
 
 	return nil
+}
+
+func getInstanceSpecs(instance interface{}, workflowStepNum int) (reflect.Value, reflect.Value){
+	instanceSpecs := reflect.ValueOf(instance).FieldByName("Spec")
+	instanceWorkflowSpecs := instanceSpecs.FieldByName("Workflow").Slice(workflowStepNum, workflowStepNum + 1)
+	return instanceSpecs, instanceWorkflowSpecs
+}
+
+func getInstanceSpecsField(instance interface{}, workflowStepNum int, field string) (reflect.Value, reflect.Value){
+	instanceSpecs, instanceWorkflowSpecs := getInstanceSpecs(instance, workflowStepNum)
+
+	instanceField := instanceSpecs.FieldByName(field)
+	instanceWorkflowField := instanceWorkflowSpecs.FieldByName(field)
+	return instanceField, instanceWorkflowField
+}
+
+func mergeSlices(instance...interface{})(reflect.Value){
+	SliceReflect := reflect.MakeSlice(reflect.TypeOf(instance[0]), 0, 0)
+	for _, v := range instance {
+		rv := reflect.ValueOf(v)
+		SliceReflect = reflect.AppendSlice(SliceReflect, rv)
+	}
+	return SliceReflect
+}
+
+func uniqueStructList(instance interface{}, workflowStepNum int, field string, comparable []string) {
+	instanceField, instanceWorkflowField := getInstanceSpecsField(instance, workflowStepNum, field)
+
+	// Merge workflow with
+	SliceReflect := mergeSlices(instanceField, instanceWorkflowField)
+	uniqueStructList := reflect.MakeSlice(reflect.TypeOf(instanceField), 0, 0)
+
+	type key struct{ value1, value2 any }
+	var m []any
+
+	for i := 0; i < SliceReflect.Len(); i++ {
+		k := key{SliceReflect.Index(i).FieldByName("Name").Interface(), SliceReflect.Index(i).FieldByName("MountPath").Interface()}
+		if ok := slices.IndexFunc(m, func(h any) bool {return h == k}); ok != -1 {
+			uniqueStructList.Index(ok).Set(SliceReflect.Index(i))
+		} else {
+			m = append(m, k)
+			uniqueStructList = reflect.Append(uniqueStructList, SliceReflect.Index(i))
+		}
+	}
+	fmt.Print(uniqueStructList)
+	// unique := reflect.MakeSlice(reflect.TypeOf(instanceField), 0, 0)
+	// m := reflect.MakeMap(reflect.MapOf(string, int))
+	// var unique []extraConfigmapsMounts
+	// m := make(map[helperStruct]int)
+
+	// type key struct{ value1, value2 string }
+	// for _, v := range SliceReflect {
+	// 	k := key{v.Name, v.MountPath}
+	// 	if i, ok := m[k]; ok {
+	// 		unique[i] = v
+	// 	} else {
+	// 		m[k] = len(unique)
+	// 		unique = append(unique, v)
+	// 	}
+	// }
+	// fmt.Print(unique)
 }
